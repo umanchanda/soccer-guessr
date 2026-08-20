@@ -1,0 +1,5 @@
+:root { font-family: 'Trebuchet MS', 'Avenir Next', sans-serif; color: #f4f0e8; background: #11221f; font-synthesis: none; text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; }
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 320px; }
+button, select { font: inherit; }
+button, a, select { -webkit-tap-highlight-color: transparent; }
