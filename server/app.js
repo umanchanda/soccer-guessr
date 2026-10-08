@@ -89,6 +89,7 @@ function handOffPage(canonicalHost) {
   return `<!doctype html>
 <meta charset="utf-8">
 <title>Soccer Guessr has moved</title>
+<noscript><meta http-equiv="refresh" content="0; url=https://${canonicalHost}/"></noscript>
 <p>Soccer Guessr has moved to <a id="next" href="https://${canonicalHost}/">${canonicalHost}</a>.</p>
 <script>
   var target = 'https://' + ${host} + location.pathname + location.search
@@ -282,8 +283,11 @@ export function createApp({ store, dist, secureCookies = false, canonicalHost = 
     }
     const host = String(request.headers.host || '').split(':')[0].toLowerCase()
     if (canonicalHost && host !== canonicalHost) {
-      // A page load (not an asset or API call) may have guest scores to carry across.
-      if (request.method === 'GET' && !pathname.startsWith('/api/') && !path.extname(pathname)) {
+      // A page load on the old herokuapp.com address (not an asset or API call) may have guest
+      // scores to carry across. Every other address, like the bare domain, never served the game,
+      // so it gets a real redirect: crawlers such as Google's app review don't run the hand-off's
+      // script and would otherwise see a "has moved" page instead of the site.
+      if (host.endsWith('.herokuapp.com') && request.method === 'GET' && !pathname.startsWith('/api/') && !path.extname(pathname)) {
         response.writeHead(200, { 'Content-Type': 'text/html', 'Cache-Control': 'no-store' })
         response.end(handOffPage(canonicalHost))
         return
