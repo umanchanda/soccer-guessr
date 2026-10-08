@@ -175,8 +175,12 @@ function LineupReveal({ team, guesses }) {
   )
 }
 
-// Finished rounds, daily or archive, keyed by round number: { [round]: { earned, available } }.
+// Finished rounds, daily or archive, keyed by round number: { [round]: { earned, available, steps } },
+// where steps lists the points won on each question (missing on rounds saved before it existed).
 const RESULTS_KEY = 'soccer-guessr:results'
+// Rounds started but not finished: { [round]: { step, guesses, results } }. A round counts as
+// played once its first answer is locked in, so leaving and coming back resumes it.
+const PROGRESS_KEY = 'soccer-guessr:progress'
 
 function loadRoundResults() {
   try {
@@ -192,6 +196,31 @@ function saveRoundResults(roundResults) {
   } catch {
     // Private browsing or full storage: the archive just won't remember this round.
   }
+}
+
+function loadProgress() {
+  try {
+    return JSON.parse(localStorage.getItem(PROGRESS_KEY)) || {}
+  } catch {
+    return {}
+  }
+}
+
+function saveProgress(round, state) {
+  try {
+    const { [round]: _, ...others } = loadProgress()
+    localStorage.setItem(PROGRESS_KEY, JSON.stringify(state ? { ...others, [round]: state } : others))
+  } catch {
+    // Same as above: without storage, a half-played round starts over.
+  }
+}
+
+// Where a round picks up: a half-played round resumes, anything else starts fresh.
+function startingState(round) {
+  const saved = round === null ? null : loadProgress()[round]
+  return saved && Array.isArray(saved.results) && saved.guesses
+    ? { step: saved.step, guesses: { ...emptyGuesses(), ...saved.guesses }, results: saved.results }
+    : { step: 0, guesses: emptyGuesses(), results: [] }
 }
 
 function AccountPanel({ onSignedIn, onClose }) {
@@ -242,6 +271,7 @@ function AccountPanel({ onSignedIn, onClose }) {
 const formatDate = (date, options) => date.toLocaleDateString(undefined, options)
 
 function Archive({ todayRound, playingRound, roundResults, onPlay }) {
+  const started = loadProgress()
   return (
     <section className="archive" id="archive">
       <p className="eyebrow">ARCHIVE</p>
@@ -254,7 +284,7 @@ function Archive({ todayRound, playingRound, roundResults, onPlay }) {
               <button type="button" className={round === playingRound ? 'current' : ''} onClick={() => onPlay(round)}>
                 <strong>Round {String(round).padStart(3, '0')}</strong>
                 <span>{round === todayRound ? 'Today' : formatDate(roundDate(round), { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}</span>
-                <b>{saved ? `${saved.earned} / ${saved.available}` : round === playingRound ? 'Playing' : 'Not played'}</b>
+                <b>{saved ? `${saved.earned} / ${saved.available}` : round === playingRound ? 'Playing' : started[round] ? 'Unfinished' : 'Not played'}</b>
               </button>
             </li>
           )
@@ -265,8 +295,8 @@ function Archive({ todayRound, playingRound, roundResults, onPlay }) {
 }
 
 function shareText(round, results, total, max) {
-  const squares = results.map(({ points, max: stepMax }) => (points === stepMax ? '🟩' : points > 0 ? '🟨' : '⬛')).join('')
-  return `icalledgame ⚽ soccer ${round === null ? 'practice' : `#${round}`}\n${squares} ${total}/${max}\n${window.location.origin}`
+  const squares = results ? `${results.map(({ points, max: stepMax }) => (points === stepMax ? '🟩' : points > 0 ? '🟨' : '⬛')).join('')} ` : ''
+  return `icalledgame ⚽ soccer ${round === null ? 'practice' : `#${round}`}\n${squares}${total}/${max}\n${window.location.origin}`
 }
 
 function App() {
@@ -281,9 +311,10 @@ function App() {
   const [accounts, setAccounts] = useState(false)
   const [user, setUser] = useState(null)
   const [showAccount, setShowAccount] = useState(false)
-  const [step, setStep] = useState(0)
-  const [guesses, setGuesses] = useState(emptyGuesses)
-  const [results, setResults] = useState([])
+  const [initial] = useState(() => startingState(todayRound))
+  const [step, setStep] = useState(initial.step)
+  const [guesses, setGuesses] = useState(initial.guesses)
+  const [results, setResults] = useState(initial.results)
   const [copied, setCopied] = useState(false)
 
   const roundResults = accountResults || guestResults
@@ -315,24 +346,36 @@ function App() {
 
   const match = MATCHES[matchIndex]
   const steps = buildSteps(match)
+  // Each round is played once: a round already finished, here or on another device, only shows its result.
+  const saved = round === null ? null : roundResults[round]
   const current = steps[step]
   const locked = results.length > step
-  const finished = step === steps.length
-  const earned = results.reduce((sum, result) => sum + result.points, 0)
-  const available = steps.reduce((sum, item) => sum + item.max, 0)
+  const finished = step === steps.length || Boolean(saved)
+  const earned = saved ? saved.earned : results.reduce((sum, result) => sum + result.points, 0)
+  const available = saved ? saved.available : steps.reduce((sum, item) => sum + item.max, 0)
+  // Per-question points for the summary and share squares, when they're known.
+  const savedSteps = saved?.steps?.length === steps.length ? saved.steps.map((points, index) => ({ points, max: steps[index].max })) : null
+  const breakdown = savedSteps || (results.length === steps.length ? results : null)
+
+  // Remember a started round so leaving mid-round doesn't hand out a fresh attempt.
+  useEffect(() => {
+    if (round === null || saved || !results.length) return
+    saveProgress(round, { step, guesses, results })
+  }, [round, saved, step, guesses, results])
   const roundLabel = round === null ? 'PRACTICE' : `${round === todayRound ? '' : 'ARCHIVE · '}ROUND ${String(round).padStart(3, '0')}`
   const score = finalScore(match)
-  const revealed = (key) => results.length > steps.findIndex((item) => item.key === key)
+  const revealed = (key) => finished || results.length > steps.findIndex((item) => item.key === key)
 
   const update = (key, value) => setGuesses((currentGuesses) => ({ ...currentGuesses, [key]: value }))
   const updatePair = (key, index, value) => setGuesses((currentGuesses) => ({ ...currentGuesses, [key]: currentGuesses[key].map((item, i) => (i === index ? value : item)) }))
   const lockIn = () => setResults((currentResults) => [...currentResults, { points: current.points(guesses), max: current.max }])
   const startMatch = (index, nextRound = null) => {
+    const start = startingState(nextRound)
     setRound(nextRound)
     setMatchIndex(index)
-    setStep(0)
-    setGuesses(emptyGuesses())
-    setResults([])
+    setStep(start.step)
+    setGuesses(start.guesses)
+    setResults(start.results)
     setCopied(false)
   }
   const playRound = (nextRound) => {
@@ -342,8 +385,9 @@ function App() {
   // Keep the first finished attempt at a round, so replaying from the archive doesn't overwrite it.
   const finishRound = () => {
     setStep((currentStep) => currentStep + 1)
-    if (round === null || roundResults[round]) return
-    const entry = { [round]: { earned, available } }
+    if (round === null || saved) return
+    const entry = { [round]: { earned, available, steps: results.map((result) => result.points) } }
+    saveProgress(round, null)
     if (user) {
       setAccountResults((current) => ({ ...entry, ...current }))
       uploadResults(entry).then(({ results }) => setAccountResults(results)).catch(() => {})
@@ -355,10 +399,10 @@ function App() {
   }
   const share = async () => {
     try {
-      await navigator.clipboard.writeText(shareText(round, results, earned, available))
+      await navigator.clipboard.writeText(shareText(round, breakdown, earned, available))
       setCopied(true)
     } catch {
-      window.prompt('Copy your result:', shareText(round, results, earned, available))
+      window.prompt('Copy your result:', shareText(round, breakdown, earned, available))
     }
   }
 
@@ -486,12 +530,15 @@ function App() {
                 <div><p className="eyebrow">FULL TIME</p><h2>{earned === available ? 'Called it.' : `${earned} of ${available} points`}</h2></div>
                 <div className="score">{Math.round((earned / available) * 100)}%<small>accuracy</small></div>
               </div>
-              <ul className="breakdown">
-                {steps.map((item, index) => (
-                  <li key={item.key}><span>{item.label}</span><b>{results[index].points} / {item.max}</b></li>
-                ))}
-              </ul>
-              <p className="match-summary">{match.competitionName} · {match.venue}</p>
+              {breakdown && (
+                <ul className="breakdown">
+                  {steps.map((item, index) => (
+                    <li key={item.key}><span>{item.label}</span><b>{breakdown[index].points} / {item.max}</b></li>
+                  ))}
+                </ul>
+              )}
+              <p className="match-summary">{match.home.name} vs {match.away.name} · {match.competitionName} · {match.venue}</p>
+              {round !== null && <p className="played-note">{round === todayRound ? 'You’ve played today’s match. A new one arrives tomorrow.' : 'You’ve already played this round.'}</p>}
               <div className="step-actions">
                 <button className="back-button" type="button" onClick={share}>{copied ? 'Copied ✓' : 'Share result'}</button>
                 <button className="submit-button" type="button" onClick={() => startMatch((matchIndex + 1) % MATCHES.length)}>Play another match <span>→</span></button>

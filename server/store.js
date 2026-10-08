@@ -23,6 +23,7 @@ const SCHEMA = `
     finished_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     PRIMARY KEY (user_id, round)
   );
+  ALTER TABLE round_results ADD COLUMN IF NOT EXISTS steps INTEGER[];
 `
 
 export async function postgresStore(connectionString) {
@@ -58,17 +59,19 @@ export async function postgresStore(connectionString) {
       await pool.query('DELETE FROM sessions WHERE token_hash = $1', [tokenHash])
     },
     async getResults(userId) {
-      const { rows } = await pool.query('SELECT round, earned, available FROM round_results WHERE user_id = $1', [userId])
-      return Object.fromEntries(rows.map(({ round, earned, available }) => [round, { earned, available }]))
+      const { rows } = await pool.query('SELECT round, earned, available, steps FROM round_results WHERE user_id = $1', [userId])
+      return Object.fromEntries(rows.map(({ round, earned, available, steps }) => [round, steps ? { earned, available, steps } : { earned, available }]))
     },
     async saveResults(userId, results) {
       const entries = Object.entries(results)
       if (!entries.length) return
+      // unnest flattens int[][], so each round's steps travel as JSON text and are unpacked per row.
       await pool.query(
-        `INSERT INTO round_results (user_id, round, earned, available)
-         SELECT $1, * FROM unnest($2::int[], $3::int[], $4::int[])
+        `INSERT INTO round_results (user_id, round, earned, available, steps)
+         SELECT $1, round, earned, available, (SELECT array_agg(value::int ORDER BY n) FROM json_array_elements_text(steps::json) WITH ORDINALITY AS e(value, n))
+         FROM unnest($2::int[], $3::int[], $4::int[], $5::text[]) AS t(round, earned, available, steps)
          ON CONFLICT (user_id, round) DO NOTHING`,
-        [userId, entries.map(([round]) => Number(round)), entries.map(([, r]) => r.earned), entries.map(([, r]) => r.available)],
+        [userId, entries.map(([round]) => Number(round)), entries.map(([, r]) => r.earned), entries.map(([, r]) => r.available), entries.map(([, r]) => (r.steps ? JSON.stringify(r.steps) : null))],
       )
     },
     close: () => pool.end(),
