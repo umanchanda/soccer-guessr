@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import './App.css'
 import { COMPETITION_TYPES, MANAGER_OPTIONS, MATCHES, PLAYER_OPTIONS, TEAM_OPTIONS } from './matches.js'
+import { getSession, signIn, signOut, signUp, uploadResults } from './account.js'
 import { archiveRounds, countMatches, finalScore, normalize, personMatches, resultNote, roundDate, roundMatchIndex, roundNumber, scorersOf, teamMatches } from './game.js'
 
 const MAX_SUGGESTIONS = 6
@@ -193,6 +194,51 @@ function saveRoundResults(roundResults) {
   }
 }
 
+function AccountPanel({ onSignedIn, onClose }) {
+  const [mode, setMode] = useState('signin')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [error, setError] = useState('')
+  const [busy, setBusy] = useState(false)
+  const creating = mode === 'signup'
+
+  const submit = async (event) => {
+    event.preventDefault()
+    setBusy(true)
+    setError('')
+    try {
+      const { user } = await (creating ? signUp : signIn)(email, password)
+      await onSignedIn(user)
+    } catch (failure) {
+      setError(failure.message)
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="account-backdrop" onClick={onClose}>
+      <form className="account-panel" onSubmit={submit} onClick={(event) => event.stopPropagation()}>
+        <p className="eyebrow">{creating ? 'CREATE AN ACCOUNT' : 'SIGN IN'}</p>
+        <h2>{creating ? 'Keep your scores everywhere.' : 'Welcome back.'}</h2>
+        <p>Scores you’ve saved on this device are added to your account.</p>
+        <label>
+          <span>Email</span>
+          <input type="email" autoComplete="email" required value={email} onChange={(event) => setEmail(event.target.value)} />
+        </label>
+        <label>
+          <span>Password</span>
+          <input type="password" autoComplete={creating ? 'new-password' : 'current-password'} required minLength={creating ? 8 : undefined} value={password} onChange={(event) => setPassword(event.target.value)} />
+        </label>
+        {error && <p className="account-error">{error}</p>}
+        <button className="submit-button" type="submit" disabled={busy}>{creating ? 'Create account' : 'Sign in'} <span>→</span></button>
+        <button className="account-switch" type="button" onClick={() => { setMode(creating ? 'signin' : 'signup'); setError('') }}>
+          {creating ? 'Already have an account? Sign in' : 'New here? Create an account'}
+        </button>
+      </form>
+    </div>
+  )
+}
+
 const formatDate = (date, options) => date.toLocaleDateString(undefined, options)
 
 function Archive({ todayRound, playingRound, roundResults, onPlay }) {
@@ -229,11 +275,43 @@ function App() {
   // The round being played, or null for practice matches reached via "Play another match".
   const [round, setRound] = useState(todayRound)
   const [matchIndex, setMatchIndex] = useState(() => roundMatchIndex(todayRound))
-  const [roundResults, setRoundResults] = useState(loadRoundResults)
+  // Guests' results live in this browser; signed-in players' results live in their account.
+  const [guestResults, setGuestResults] = useState(loadRoundResults)
+  const [accountResults, setAccountResults] = useState(null)
+  const [accounts, setAccounts] = useState(false)
+  const [user, setUser] = useState(null)
+  const [showAccount, setShowAccount] = useState(false)
   const [step, setStep] = useState(0)
   const [guesses, setGuesses] = useState(emptyGuesses)
   const [results, setResults] = useState([])
   const [copied, setCopied] = useState(false)
+
+  const roundResults = accountResults || guestResults
+
+  // Copies this browser's guest results into the account, then shows the account's results.
+  const startAccount = async (signedInUser) => {
+    const { results } = await uploadResults(guestResults)
+    setUser(signedInUser)
+    setAccountResults(results)
+    setShowAccount(false)
+  }
+
+  useEffect(() => {
+    getSession()
+      .then(({ accounts: enabled, user: signedInUser }) => {
+        setAccounts(enabled)
+        if (signedInUser) return startAccount(signedInUser)
+      })
+      .catch(() => {})
+    // Only on first load; later sign-ins go through the account panel.
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const leaveAccount = async () => {
+    await signOut().catch(() => {})
+    setUser(null)
+    setAccountResults(null)
+  }
 
   const match = MATCHES[matchIndex]
   const steps = buildSteps(match)
@@ -265,8 +343,14 @@ function App() {
   const finishRound = () => {
     setStep((currentStep) => currentStep + 1)
     if (round === null || roundResults[round]) return
-    const next = { ...roundResults, [round]: { earned, available } }
-    setRoundResults(next)
+    const entry = { [round]: { earned, available } }
+    if (user) {
+      setAccountResults((current) => ({ ...entry, ...current }))
+      uploadResults(entry).then(({ results }) => setAccountResults(results)).catch(() => {})
+      return
+    }
+    const next = { ...guestResults, ...entry }
+    setGuestResults(next)
     saveRoundResults(next)
   }
   const share = async () => {
@@ -339,8 +423,15 @@ function App() {
     <main className="app-shell">
       <header className="topbar">
         <a className="brand" href="/" aria-label="icalledgame home"><span>i</span>calledgame</a>
-        <nav><a href="#archive">Archive</a><a href="#how-to-play">How to play</a></nav>
+        <nav>
+          <a href="#archive">Archive</a><a href="#how-to-play">How to play</a>
+          {accounts && (user
+            ? <span className="account-nav"><small>{user.email}</small><button type="button" onClick={leaveAccount}>Sign out</button></span>
+            : <button type="button" className="account-nav" onClick={() => setShowAccount(true)}>Sign in</button>)}
+        </nav>
       </header>
+
+      {showAccount && <AccountPanel onSignedIn={startAccount} onClose={() => setShowAccount(false)} />}
 
       <section className="intro">
         <div><p className="eyebrow">THE DAILY SOCCER PUZZLE</p><h1>Can you call<br /><em>this</em> game?</h1></div>
