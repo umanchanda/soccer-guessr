@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import './App.css'
 import { COMPETITION_TYPES, MANAGER_OPTIONS, MATCHES, PLAYER_OPTIONS, TEAM_OPTIONS } from './matches.js'
-import { countMatches, dailyMatchIndex, finalScore, normalize, personMatches, resultNote, roundNumber, scorersOf, teamMatches } from './game.js'
+import { archiveRounds, countMatches, finalScore, normalize, personMatches, resultNote, roundDate, roundMatchIndex, roundNumber, scorersOf, teamMatches } from './game.js'
 
 const MAX_SUGGESTIONS = 6
 
@@ -174,15 +174,62 @@ function LineupReveal({ team, guesses }) {
   )
 }
 
+// Finished rounds, daily or archive, keyed by round number: { [round]: { earned, available } }.
+const RESULTS_KEY = 'soccer-guessr:results'
+
+function loadRoundResults() {
+  try {
+    return JSON.parse(localStorage.getItem(RESULTS_KEY)) || {}
+  } catch {
+    return {}
+  }
+}
+
+function saveRoundResults(roundResults) {
+  try {
+    localStorage.setItem(RESULTS_KEY, JSON.stringify(roundResults))
+  } catch {
+    // Private browsing or full storage: the archive just won't remember this round.
+  }
+}
+
+const formatDate = (date, options) => date.toLocaleDateString(undefined, options)
+
+function Archive({ todayRound, playingRound, roundResults, onPlay }) {
+  return (
+    <section className="archive" id="archive">
+      <p className="eyebrow">ARCHIVE</p>
+      <h2>Missed a day? Play any past round.</h2>
+      <ul className="archive-list">
+        {archiveRounds(roundDate(todayRound)).map((round) => {
+          const saved = roundResults[round]
+          return (
+            <li key={round}>
+              <button type="button" className={round === playingRound ? 'current' : ''} onClick={() => onPlay(round)}>
+                <strong>Round {String(round).padStart(3, '0')}</strong>
+                <span>{round === todayRound ? 'Today' : formatDate(roundDate(round), { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                <b>{saved ? `${saved.earned} / ${saved.available}` : round === playingRound ? 'Playing' : 'Not played'}</b>
+              </button>
+            </li>
+          )
+        })}
+      </ul>
+    </section>
+  )
+}
+
 function shareText(round, results, total, max) {
   const squares = results.map(({ points, max: stepMax }) => (points === stepMax ? '🟩' : points > 0 ? '🟨' : '⬛')).join('')
-  return `icalledgame ⚽ soccer #${round}\n${squares} ${total}/${max}\n${window.location.origin}`
+  return `icalledgame ⚽ soccer ${round === null ? 'practice' : `#${round}`}\n${squares} ${total}/${max}\n${window.location.origin}`
 }
 
 function App() {
   const today = new Date()
-  const round = roundNumber(today)
-  const [matchIndex, setMatchIndex] = useState(() => dailyMatchIndex(today))
+  const todayRound = roundNumber(today)
+  // The round being played, or null for practice matches reached via "Play another match".
+  const [round, setRound] = useState(todayRound)
+  const [matchIndex, setMatchIndex] = useState(() => roundMatchIndex(todayRound))
+  const [roundResults, setRoundResults] = useState(loadRoundResults)
   const [step, setStep] = useState(0)
   const [guesses, setGuesses] = useState(emptyGuesses)
   const [results, setResults] = useState([])
@@ -195,19 +242,32 @@ function App() {
   const finished = step === steps.length
   const earned = results.reduce((sum, result) => sum + result.points, 0)
   const available = steps.reduce((sum, item) => sum + item.max, 0)
-  const isDaily = matchIndex === dailyMatchIndex(today)
+  const roundLabel = round === null ? 'PRACTICE' : `${round === todayRound ? '' : 'ARCHIVE · '}ROUND ${String(round).padStart(3, '0')}`
   const score = finalScore(match)
   const revealed = (key) => results.length > steps.findIndex((item) => item.key === key)
 
   const update = (key, value) => setGuesses((currentGuesses) => ({ ...currentGuesses, [key]: value }))
   const updatePair = (key, index, value) => setGuesses((currentGuesses) => ({ ...currentGuesses, [key]: currentGuesses[key].map((item, i) => (i === index ? value : item)) }))
   const lockIn = () => setResults((currentResults) => [...currentResults, { points: current.points(guesses), max: current.max }])
-  const startMatch = (index) => {
+  const startMatch = (index, nextRound = null) => {
+    setRound(nextRound)
     setMatchIndex(index)
     setStep(0)
     setGuesses(emptyGuesses())
     setResults([])
     setCopied(false)
+  }
+  const playRound = (nextRound) => {
+    startMatch(roundMatchIndex(nextRound), nextRound)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+  // Keep the first finished attempt at a round, so replaying from the archive doesn't overwrite it.
+  const finishRound = () => {
+    setStep((currentStep) => currentStep + 1)
+    if (round === null || roundResults[round]) return
+    const next = { ...roundResults, [round]: { earned, available } }
+    setRoundResults(next)
+    saveRoundResults(next)
   }
   const share = async () => {
     try {
@@ -279,14 +339,14 @@ function App() {
     <main className="app-shell">
       <header className="topbar">
         <a className="brand" href="/" aria-label="icalledgame home"><span>i</span>calledgame</a>
-        <nav><a href="#how-to-play">How to play</a></nav>
+        <nav><a href="#archive">Archive</a><a href="#how-to-play">How to play</a></nav>
       </header>
 
       <section className="intro">
         <div><p className="eyebrow">THE DAILY SOCCER PUZZLE</p><h1>Can you call<br /><em>this</em> game?</h1></div>
         <div className="date-stamp">
-          <strong>{isDaily ? `ROUND ${String(round).padStart(3, '0')}` : 'PRACTICE'}</strong>
-          <span>{today.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>
+          <strong>{roundLabel}</strong>
+          <span>{formatDate(round === null ? today : roundDate(round), { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>
           <b>● {finished ? 'FINAL WHISTLE' : 'LIVE'}</b>
         </div>
       </section>
@@ -325,7 +385,7 @@ function App() {
               )}
               <div className="step-actions">
                 {locked
-                  ? <button className="submit-button" type="button" onClick={() => setStep((currentStep) => currentStep + 1)}>{step === steps.length - 1 ? 'See your result' : 'Next question'} <span>→</span></button>
+                  ? <button className="submit-button" type="button" onClick={step === steps.length - 1 ? finishRound : () => setStep((currentStep) => currentStep + 1)}>{step === steps.length - 1 ? 'See your result' : 'Next question'} <span>→</span></button>
                   : <button className="submit-button" type="button" disabled={!current.ready(guesses)} onClick={lockIn}>Lock it in <span>→</span></button>}
               </div>
             </>
@@ -349,6 +409,8 @@ function App() {
           )}
         </div>
       </section>
+
+      <Archive todayRound={todayRound} playingRound={round} roundResults={roundResults} onPlay={playRound} />
 
       <section className="how-to-play" id="how-to-play">
         <p className="eyebrow">HOW TO PLAY</p>

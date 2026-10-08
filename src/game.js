@@ -57,4 +57,14 @@ export const roundNumber = (date) => dayNumber(date) - LAUNCH_DAY + 1
 
 // Round 1 plays MATCHES[0], round 2 MATCHES[1] and so on, so appending matches
 // doesn't reshuffle the schedule until the list wraps around.
-export const dailyMatchIndex = (date) => (((roundNumber(date) - 1) % MATCHES.length) + MATCHES.length) % MATCHES.length
+export const roundMatchIndex = (round) => (((round - 1) % MATCHES.length) + MATCHES.length) % MATCHES.length
+export const dailyMatchIndex = (date) => roundMatchIndex(roundNumber(date))
+
+// The calendar day a round was the daily puzzle, as a local date.
+export function roundDate(round) {
+  const utc = new Date((LAUNCH_DAY + round - 1) * 86400000)
+  return new Date(utc.getUTCFullYear(), utc.getUTCMonth(), utc.getUTCDate())
+}
+
+// Archive rounds, newest first: every day from launch up to and including `date`.
+export const archiveRounds = (date) => Array.from({ length: Math.max(0, roundNumber(date)) }, (_, i) => roundNumber(date) - i)

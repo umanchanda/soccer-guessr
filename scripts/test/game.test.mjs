@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { countMatches, dailyMatchIndex, personMatches, resultNote, teamMatches } from '../../src/game.js'
+import { archiveRounds, countMatches, dailyMatchIndex, personMatches, resultNote, roundDate, roundMatchIndex, roundNumber, teamMatches } from '../../src/game.js'
 import { MATCHES } from '../../src/matches.js'
 
 test('team guesses must match a name or alias exactly', () => {
@@ -32,4 +32,12 @@ test('people match on surnames, longer forms and nicknames', () => {
   assert.equal(personMatches('Pity Martínez', 'Gonzalo Martínez'), true)
   assert.equal(personMatches('Neymar', 'Gabriel Jesus'), false)
   assert.equal(countMatches(['kroos', 'kroos'], ['Toni Kroos', 'Mesut Özil']).size, 1)
+})
+
+test('archive covers launch day up to today, newest first', () => {
+  assert.deepEqual(archiveRounds(new Date(2026, 9, 9)), [3, 2, 1])
+  assert.deepEqual(archiveRounds(new Date(2026, 9, 6)), [])
+  assert.equal(roundMatchIndex(2), dailyMatchIndex(new Date(2026, 9, 8)))
+  assert.equal(roundDate(1).toDateString(), new Date(2026, 9, 7).toDateString())
+  assert.equal(roundNumber(roundDate(40)), 40)
 })
