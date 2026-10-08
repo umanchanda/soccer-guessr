@@ -44,6 +44,10 @@ node scripts/import-match.mjs "2018 FIFA World Cup Group B" "Portugal vs Spain"
 It prints the entry and warns when something doesn't add up (not 11 starters, goals that don't match the score, a scorer missing from both squads). Fill in the photo, competition type and team aliases yourself. Wikipedia lists the official home team first, which isn't always the side people remember.
 
 Photos are loaded from Wikimedia Commons at runtime and aren't stored in this repository or on Heroku's filesystem. Each match records the photo's author and license, which the footer displays. Pick photos that don't give the answer away (no scoreboards or scarves naming the final).
+
+### Daily routine
+
+A Claude Code routine runs once a day and adds the next match by following [`.claude/skills/add-daily-match/SKILL.md`](.claude/skills/add-daily-match/SKILL.md): it imports the line-ups, finds a match photo on Commons, runs `npm test`, `npm run lint` and `npm run build`, then opens a pull request and merges it into `master`. If a check fails it leaves the pull request open instead. `node scripts/match-runway.mjs` shows how many days of new matches are left and which competition type is due next.
 # React + Vite
 
 This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
