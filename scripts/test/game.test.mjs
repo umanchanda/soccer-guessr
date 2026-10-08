@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { calendarWeeks, countMatches, dailyMatchIndex, personMatches, resultNote, roundDate, roundMatchIndex, roundNumber, teamMatches } from '../../src/game.js'
-import { MATCHES } from '../../src/matches.js'
+import { COMPETITION_TYPES, MATCHES } from '../../src/matches.js'
 
 test('team guesses must match a name or alias exactly', () => {
   const team = { name: 'West Germany', aliases: ['FRG'] }
@@ -46,4 +46,39 @@ test('the archive calendar covers round 1 up to today', () => {
   assert.equal(roundMatchIndex(2), dailyMatchIndex(new Date(2026, 9, 4)))
   assert.equal(roundDate(1).toDateString(), new Date(2026, 9, 3).toDateString())
   assert.equal(roundNumber(roundDate(40)), 40)
+})
+
+test('the runway report counts days left and picks the least recent competition type', async () => {
+  const { nextCompetition, runway } = await import('../match-runway.mjs')
+  const report = runway(MATCHES, new Date(2026, 9, 3))
+  assert.equal(report.todayRound, 1)
+  assert.equal(report.daysLeft, MATCHES.length - 1)
+  const matches = ['world-cup', 'domestic-league', 'continental-club', 'world-cup'].map((competition) => ({ competition }))
+  assert.equal(nextCompetition(matches), 'continental-trophy')
+  assert.equal(nextCompetition([...matches, { competition: 'continental-trophy' }]), 'domestic-league')
+})
+
+test('every match is complete and well-formed', () => {
+  const types = COMPETITION_TYPES.map((type) => type.id)
+  const ids = MATCHES.map((match) => match.id)
+  assert.equal(new Set(ids).size, ids.length, 'match ids are unique')
+  for (const match of MATCHES) {
+    const at = match.id
+    assert.match(match.id, /^[a-z0-9-]+$/, at)
+    assert.ok(types.includes(match.competition), `${at}: competition type`)
+    assert.ok(match.competitionName && match.venue, `${at}: competition name and venue`)
+    assert.ok(Number.isInteger(match.year) && match.year > 1900 && match.year <= new Date().getFullYear(), `${at}: year`)
+    for (const side of ['home', 'away']) {
+      const team = match[side]
+      assert.ok(team.name && team.manager && Array.isArray(team.aliases), `${at}: ${side} team`)
+      assert.equal(new Set(team.startingXI).size, 11, `${at}: ${side} has 11 different starters`)
+    }
+    const { image } = match
+    assert.match(image.src, /^https:\/\/(upload|thumb)\.wikimedia\.org\//, `${at}: photo from Wikimedia`)
+    assert.match(image.page, /^https:\/\/commons\.wikimedia\.org\/wiki\/File:/, `${at}: Commons file page`)
+    assert.ok(image.author && image.license && image.licenseUrl, `${at}: photo credit`)
+    for (const goal of match.goals) {
+      assert.ok(['home', 'away'].includes(goal.team) && goal.player && typeof goal.minute === 'string', `${at}: goal`)
+    }
+  }
 })
