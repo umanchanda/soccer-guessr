@@ -5,6 +5,7 @@ import { getSession, signIn, signOut, signUp, uploadResults } from './account.js
 import { calendarWeeks, countMatches, finalScore, normalize, personMatches, resultNote, roundDate, roundMatchIndex, roundNumber, scorersOf, teamMatches } from './game.js'
 
 const MAX_SUGGESTIONS = 6
+const DISCORD_URL = 'https://discord.gg/P4NuchShK'
 
 function suggest(query, options, exclude = []) {
   const target = normalize(query)
@@ -519,7 +520,7 @@ function App() {
       <header className="topbar">
         <a className="brand" href="/" aria-label="icalledgame home"><span>i</span>calledgame</a>
         <nav>
-          <a href="#archive" className={view === 'archive' ? 'active' : ''}>Archive</a><a href="#how-to-play">How to play</a>
+          <a href="#archive" className={view === 'archive' ? 'active' : ''}>Archive</a><a href="#how-to-play">How to play</a><a href={DISCORD_URL} target="_blank" rel="noopener noreferrer">Discord</a>
           {accounts && (user
             ? <span className="account-nav"><small>{user.email}</small><button type="button" onClick={leaveAccount}>Sign out</button></span>
             : <button type="button" className="account-nav" onClick={() => setShowAccount(true)}>Sign in</button>)}
@@ -595,6 +596,7 @@ function App() {
               {round !== null && <p className="played-note">{round === todayRound ? 'You’ve played today’s match. A new one arrives tomorrow.' : 'You’ve already played this round.'}</p>}
               <div className="step-actions">
                 <button className="back-button" type="button" onClick={share}>{copied ? 'Copied ✓' : 'Share result'}</button>
+                <a className="back-button discord-button" href={DISCORD_URL} target="_blank" rel="noopener noreferrer">Join the Discord</a>
                 <button className="submit-button" type="button" onClick={() => startMatch((matchIndex + 1) % MATCHES.length)}>Play another match <span>→</span></button>
               </div>
             </div>
