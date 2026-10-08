@@ -18,7 +18,7 @@ npm start
 
 ## Adding matches
 
-Every puzzle lives in `src/matches.js`. Each entry needs the teams, managers, starting XIs, goals (scorer, minute, which side it counted for), year, competition type and a photo. The list is also the schedule: round 1 (7 October 2026) plays the first match, round 2 the second, and so on, so add new matches at the end. "Play another match" steps to the next one.
+Every puzzle lives in `src/matches.js`. Each entry needs the teams, managers, starting XIs, goals (scorer, minute, which side it counted for), year, competition type and a photo. The list is also the schedule: round 1 (7 October 2026) plays the first match, round 2 the second, and so on, so add new matches at the end. "Play another match" steps to the next one. The archive section lists every round from launch up to today so players can catch up on days they missed; finished rounds are remembered in the browser (localStorage) and show their score.
 
 Most major finals and tournament matches have line-up tables on Wikipedia. `scripts/import-match.mjs` turns one into an entry:
 
