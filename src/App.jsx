@@ -614,7 +614,7 @@ function App() {
         <span>icalledgame <b>×</b> soccer edition</span>
         {/* The Commons file name gives the answer away, so only link it once the round is over. */}
         {view === 'game' && <span>Photo: {finished ? <a href={match.image.page} target="_blank" rel="noreferrer">{match.image.author}</a> : match.image.author} / Wikimedia Commons <a href={match.image.licenseUrl} target="_blank" rel="noreferrer"><i>{match.image.license}</i></a></span>}
-        <span>New match daily</span>
+        <span>New match daily · <a href="/privacy">Privacy</a></span>
       </footer>
     </main>
   )
