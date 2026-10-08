@@ -21,7 +21,7 @@ async function startApp(store) {
     if (setCookie) cookie = setCookie.split(';')[0]
     return { status: response.status, body: await response.json(), setCookie }
   }
-  return { call, close: () => new Promise((resolve) => server.close(resolve)), forget: () => { cookie = '' } }
+  return { call, close: () => new Promise((resolve) => { server.close(resolve); server.closeAllConnections() }), forget: () => { cookie = '' } }
 }
 
 test('passwords are hashed and verified', async () => {
@@ -43,7 +43,7 @@ test('results are cleaned before saving', () => {
 
 test('without a database, accounts are off but the session check works', async () => {
   const app = await startApp(null)
-  assert.deepEqual((await app.call('GET', '/api/session')).body, { accounts: false, user: null })
+  assert.deepEqual((await app.call('GET', '/api/session')).body, { accounts: false, google: false, user: null })
   assert.equal((await app.call('POST', '/api/login', { email: 'a@b.co', password: 'x' })).status, 503)
   await app.close()
 })
@@ -70,7 +70,7 @@ async function accountFlow(store) {
   assert.equal((await app.call('POST', '/api/login', { email, password: 'wrong-password' })).status, 401)
   const login = await app.call('POST', '/api/login', { email, password: 'goal-line-tech' })
   assert.equal(login.status, 200)
-  assert.deepEqual((await app.call('GET', '/api/session')).body, { accounts: true, user: { email } })
+  assert.deepEqual((await app.call('GET', '/api/session')).body, { accounts: true, google: false, user: { email } })
   assert.equal(Object.keys((await app.call('GET', '/api/results')).body.results).length, 2)
 
   app.forget()

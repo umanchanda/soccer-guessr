@@ -1,4 +1,4 @@
-# icalledgame: soccer edition
+# Soccer Guessr
 
 ## Local development
 
@@ -29,6 +29,14 @@ Accounts are stored in a [Neon](https://neon.tech) Postgres database, reached th
 ```bash
 heroku config:set DATABASE_URL='postgresql://…-pooler.….neon.tech/neondb?sslmode=verify-full'
 ```
+
+Players can also use "Continue with Google". Create an OAuth client (type "Web application") in Google Cloud with the redirect URI `https://www.soccerguessr.com/api/auth/google/callback`, then set its values on Heroku; the button appears once both are set:
+
+```bash
+heroku config:set GOOGLE_CLIENT_ID=… GOOGLE_CLIENT_SECRET=…
+```
+
+A Google sign-in reaches the account already linked to that Google account, or else the account with the same (Google-verified) email, which it links; otherwise it creates one with no password.
 
 Passwords are hashed with scrypt. Sign-in uses a random session token in an HttpOnly cookie (`Secure` when `NODE_ENV=production`, which Heroku sets); only the token's hash is stored.
 
