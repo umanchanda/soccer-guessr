@@ -67,5 +67,17 @@ export function roundDate(round) {
   return new Date(utc.getUTCFullYear(), utc.getUTCMonth(), utc.getUTCDate())
 }
 
-// Archive rounds, newest first: every day from launch up to and including `date`.
-export const archiveRounds = (date) => Array.from({ length: Math.max(0, roundNumber(date)) }, (_, i) => roundNumber(date) - i)
+// One month of the archive calendar as weeks of seven days, Sunday first. Each day has its
+// date and round, or a null round when it falls before round 1 or after `today`; null days pad
+// the first and last weeks.
+export function calendarWeeks(year, month, today) {
+  const lastRound = roundNumber(today)
+  const days = Array(new Date(year, month, 1).getDay()).fill(null)
+  for (let day = 1; day <= new Date(year, month + 1, 0).getDate(); day++) {
+    const date = new Date(year, month, day)
+    const round = roundNumber(date)
+    days.push({ date, round: round >= 1 && round <= lastRound ? round : null })
+  }
+  while (days.length % 7) days.push(null)
+  return Array.from({ length: days.length / 7 }, (_, week) => days.slice(week * 7, week * 7 + 7))
+}

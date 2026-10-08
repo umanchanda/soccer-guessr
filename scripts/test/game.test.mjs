@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { archiveRounds, countMatches, dailyMatchIndex, personMatches, resultNote, roundDate, roundMatchIndex, roundNumber, teamMatches } from '../../src/game.js'
+import { calendarWeeks, countMatches, dailyMatchIndex, personMatches, resultNote, roundDate, roundMatchIndex, roundNumber, teamMatches } from '../../src/game.js'
 import { MATCHES } from '../../src/matches.js'
 
 test('team guesses must match a name or alias exactly', () => {
@@ -34,9 +34,15 @@ test('people match on surnames, longer forms and nicknames', () => {
   assert.equal(countMatches(['kroos', 'kroos'], ['Toni Kroos', 'Mesut Özil']).size, 1)
 })
 
-test('archive covers launch day up to today, newest first', () => {
-  assert.deepEqual(archiveRounds(new Date(2026, 9, 5)), [3, 2, 1])
-  assert.deepEqual(archiveRounds(new Date(2026, 9, 2)), [])
+test('the archive calendar covers round 1 up to today', () => {
+  const weeks = calendarWeeks(2026, 9, new Date(2026, 9, 5))
+  const days = weeks.flat()
+  assert.ok(weeks.every((week) => week.length === 7))
+  // 1 October 2026 is a Thursday, so four blank days lead the month.
+  assert.deepEqual(days.slice(0, 5).map((day) => day && day.date.getDate()), [null, null, null, null, 1])
+  assert.deepEqual(days.filter((day) => day?.round).map((day) => [day.date.getDate(), day.round]), [[3, 1], [4, 2], [5, 3]])
+  assert.equal(days.filter(Boolean).length, 31)
+  assert.deepEqual(calendarWeeks(2026, 8, new Date(2026, 9, 5)).flat().filter((day) => day?.round), [])
   assert.equal(roundMatchIndex(2), dailyMatchIndex(new Date(2026, 9, 4)))
   assert.equal(roundDate(1).toDateString(), new Date(2026, 9, 3).toDateString())
   assert.equal(roundNumber(roundDate(40)), 40)

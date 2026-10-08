@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import './App.css'
 import { COMPETITION_TYPES, MANAGER_OPTIONS, MATCHES, PLAYER_OPTIONS, TEAM_OPTIONS } from './matches.js'
 import { getSession, signIn, signOut, signUp, uploadResults } from './account.js'
-import { archiveRounds, countMatches, finalScore, normalize, personMatches, resultNote, roundDate, roundMatchIndex, roundNumber, scorersOf, teamMatches } from './game.js'
+import { calendarWeeks, countMatches, finalScore, normalize, personMatches, resultNote, roundDate, roundMatchIndex, roundNumber, scorersOf, teamMatches } from './game.js'
 
 const MAX_SUGGESTIONS = 6
 
@@ -270,26 +270,59 @@ function AccountPanel({ onSignedIn, onClose }) {
 
 const formatDate = (date, options) => date.toLocaleDateString(undefined, options)
 
-function Archive({ todayRound, playingRound, roundResults, onPlay }) {
+const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+const monthIndex = (date) => date.getFullYear() * 12 + date.getMonth()
+
+// Every past round on a month calendar. Each day shows its round and the player's score,
+// or whether it's unfinished or still to play; days before round 1 and after today are blank.
+function ArchiveCalendar({ today, todayRound, playingRound, roundResults, onPlay, onBack }) {
+  const firstMonth = monthIndex(roundDate(1))
+  const lastMonth = monthIndex(today)
+  const [shown, setShown] = useState(lastMonth)
+  const year = Math.floor(shown / 12)
+  const month = shown % 12
+  const weeks = calendarWeeks(year, month, today)
+  const rounds = weeks.flat().filter((day) => day?.round)
+  const played = rounds.filter((day) => roundResults[day.round]).length
   const started = loadProgress()
+
   return (
     <section className="archive" id="archive">
-      <p className="eyebrow">ARCHIVE</p>
-      <h2>Missed a day? Play any past round.</h2>
-      <ul className="archive-list">
-        {archiveRounds(roundDate(todayRound)).map((round) => {
-          const saved = roundResults[round]
-          return (
-            <li key={round}>
-              <button type="button" className={round === playingRound ? 'current' : ''} onClick={() => onPlay(round)}>
-                <strong>Round {String(round).padStart(3, '0')}</strong>
-                <span>{round === todayRound ? 'Today' : formatDate(roundDate(round), { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}</span>
-                <b>{saved ? `${saved.earned} / ${saved.available}` : round === playingRound ? 'Playing' : started[round] ? 'Unfinished' : 'Not played'}</b>
+      <div className="archive-heading">
+        <div>
+          <p className="eyebrow">ARCHIVE</p>
+          <h1>Missed a day?<br /><em>Play</em> any past round.</h1>
+        </div>
+        <button className="back-button" type="button" onClick={onBack}>← Today’s match</button>
+      </div>
+      <div className="calendar">
+        <div className="calendar-bar">
+          <button type="button" aria-label="Previous month" disabled={shown <= firstMonth} onClick={() => setShown(shown - 1)}>‹</button>
+          <div>
+            <strong>{formatDate(new Date(year, month, 1), { month: 'long', year: 'numeric' })}</strong>
+            <small>{played} of {rounds.length} played</small>
+          </div>
+          <button type="button" aria-label="Next month" disabled={shown >= lastMonth} onClick={() => setShown(shown + 1)}>›</button>
+        </div>
+        <div className="calendar-grid">
+          {WEEKDAYS.map((weekday) => <span className="calendar-weekday" key={weekday}>{weekday}</span>)}
+          {weeks.flat().map((day, index) => {
+            if (!day) return <span className="calendar-day empty" key={`pad-${index}`} />
+            if (!day.round) return <span className="calendar-day off" key={day.date.getDate()}><b>{day.date.getDate()}</b></span>
+            const saved = roundResults[day.round]
+            const unfinished = !saved && Boolean(started[day.round])
+            const status = saved ? `${saved.earned} / ${saved.available}` : unfinished ? 'Unfinished' : 'Play'
+            const classes = ['calendar-day', saved ? 'played' : unfinished ? 'unfinished' : 'open', day.round === todayRound && 'today', day.round === playingRound && 'current'].filter(Boolean).join(' ')
+            return (
+              <button type="button" className={classes} key={day.date.getDate()} onClick={() => onPlay(day.round)} aria-label={`Round ${day.round}, ${formatDate(day.date, { month: 'long', day: 'numeric' })}: ${status}`}>
+                <b>{day.date.getDate()}</b>
+                <small>R{String(day.round).padStart(3, '0')}</small>
+                <span>{status}</span>
               </button>
-            </li>
-          )
-        })}
-      </ul>
+            )
+          })}
+        </div>
+      </div>
     </section>
   )
 }
@@ -316,6 +349,24 @@ function App() {
   const [guesses, setGuesses] = useState(initial.guesses)
   const [results, setResults] = useState(initial.results)
   const [copied, setCopied] = useState(false)
+  // The archive is its own view, reached at #archive so the browser's back button leaves it.
+  const [view, setView] = useState(() => (window.location.hash === '#archive' ? 'archive' : 'game'))
+
+  useEffect(() => {
+    const follow = () => setView(window.location.hash === '#archive' ? 'archive' : 'game')
+    window.addEventListener('hashchange', follow)
+    window.addEventListener('popstate', follow)
+    return () => {
+      window.removeEventListener('hashchange', follow)
+      window.removeEventListener('popstate', follow)
+    }
+  }, [])
+
+  const showGame = () => {
+    if (window.location.hash === '#archive') window.history.pushState(null, '', window.location.pathname + window.location.search)
+    setView('game')
+    window.scrollTo({ top: 0 })
+  }
 
   const roundResults = accountResults || guestResults
 
@@ -380,7 +431,7 @@ function App() {
   }
   const playRound = (nextRound) => {
     startMatch(roundMatchIndex(nextRound), nextRound)
-    window.scrollTo({ top: 0, behavior: 'smooth' })
+    showGame()
   }
   // Keep the first finished attempt at a round, so replaying from the archive doesn't overwrite it.
   const finishRound = () => {
@@ -468,7 +519,7 @@ function App() {
       <header className="topbar">
         <a className="brand" href="/" aria-label="icalledgame home"><span>i</span>calledgame</a>
         <nav>
-          <a href="#archive">Archive</a><a href="#how-to-play">How to play</a>
+          <a href="#archive" className={view === 'archive' ? 'active' : ''}>Archive</a><a href="#how-to-play">How to play</a>
           {accounts && (user
             ? <span className="account-nav"><small>{user.email}</small><button type="button" onClick={leaveAccount}>Sign out</button></span>
             : <button type="button" className="account-nav" onClick={() => setShowAccount(true)}>Sign in</button>)}
@@ -477,6 +528,9 @@ function App() {
 
       {showAccount && <AccountPanel onSignedIn={startAccount} onClose={() => setShowAccount(false)} />}
 
+      {view === 'archive' ? (
+        <ArchiveCalendar today={today} todayRound={todayRound} playingRound={round} roundResults={roundResults} onPlay={playRound} onBack={() => playRound(todayRound)} />
+      ) : (<>
       <section className="intro">
         <div><p className="eyebrow">THE DAILY SOCCER PUZZLE</p><h1>Can you call<br /><em>this</em> game?</h1></div>
         <div className="date-stamp">
@@ -548,17 +602,16 @@ function App() {
         </div>
       </section>
 
-      <Archive todayRound={todayRound} playingRound={round} roundResults={roundResults} onPlay={playRound} />
-
       <section className="how-to-play" id="how-to-play">
         <p className="eyebrow">HOW TO PLAY</p>
         <p>Study the photo, then answer one question at a time: the teams, the year, the type of competition, both managers, both starting XIs, the final score and the goalscorers. Each answer is revealed once you lock it in, so later questions get easier. Surnames are enough.</p>
       </section>
+      </>)}
 
       <footer>
         <span>icalledgame <b>×</b> soccer edition</span>
         {/* The Commons file name gives the answer away, so only link it once the round is over. */}
-        <span>Photo: {finished ? <a href={match.image.page} target="_blank" rel="noreferrer">{match.image.author}</a> : match.image.author} / Wikimedia Commons <a href={match.image.licenseUrl} target="_blank" rel="noreferrer"><i>{match.image.license}</i></a></span>
+        {view === 'game' && <span>Photo: {finished ? <a href={match.image.page} target="_blank" rel="noreferrer">{match.image.author}</a> : match.image.author} / Wikimedia Commons <a href={match.image.licenseUrl} target="_blank" rel="noreferrer"><i>{match.image.license}</i></a></span>}
         <span>New match daily</span>
       </footer>
     </main>
