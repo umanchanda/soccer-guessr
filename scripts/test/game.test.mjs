@@ -12,9 +12,9 @@ test('team guesses must match a name or alias exactly', () => {
 })
 
 test('round N plays the Nth match', () => {
-  assert.equal(dailyMatchIndex(new Date(2026, 9, 7)), 0)
-  assert.equal(dailyMatchIndex(new Date(2026, 9, 8)), 1)
-  assert.equal(dailyMatchIndex(new Date(2026, 9, 7 + MATCHES.length)), 0)
+  assert.equal(dailyMatchIndex(new Date(2026, 9, 3)), 0)
+  assert.equal(dailyMatchIndex(new Date(2026, 9, 4)), 1)
+  assert.equal(dailyMatchIndex(new Date(2026, 9, 3 + MATCHES.length)), 0)
 })
 
 test('result notes cover extra time and shootouts', () => {
@@ -35,9 +35,9 @@ test('people match on surnames, longer forms and nicknames', () => {
 })
 
 test('archive covers launch day up to today, newest first', () => {
-  assert.deepEqual(archiveRounds(new Date(2026, 9, 9)), [3, 2, 1])
-  assert.deepEqual(archiveRounds(new Date(2026, 9, 6)), [])
-  assert.equal(roundMatchIndex(2), dailyMatchIndex(new Date(2026, 9, 8)))
-  assert.equal(roundDate(1).toDateString(), new Date(2026, 9, 7).toDateString())
+  assert.deepEqual(archiveRounds(new Date(2026, 9, 5)), [3, 2, 1])
+  assert.deepEqual(archiveRounds(new Date(2026, 9, 2)), [])
+  assert.equal(roundMatchIndex(2), dailyMatchIndex(new Date(2026, 9, 4)))
+  assert.equal(roundDate(1).toDateString(), new Date(2026, 9, 3).toDateString())
   assert.equal(roundNumber(roundDate(40)), 40)
 })
