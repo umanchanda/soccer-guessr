@@ -1,6 +1,8 @@
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
+import { randomBytes, timingSafeEqual } from 'node:crypto'
 import { hashPassword, hashToken, newSessionToken, verifyPassword } from './auth.js'
+import { exchangeGoogleCode, googleAccount, googleAuthUrl } from './google.js'
 
 const contentTypes = {
   '.css': 'text/css',
@@ -38,6 +40,8 @@ function readCookie(request, name) {
   }
   return null
 }
+
+const sameString = (a, b) => Boolean(a && b) && a.length === b.length && timingSafeEqual(Buffer.from(a), Buffer.from(b))
 
 function sessionCookie(token, secure, maxAge) {
   return [`${COOKIE}=${token}`, 'Path=/', 'HttpOnly', 'SameSite=Lax', `Max-Age=${maxAge}`, ...(secure ? ['Secure'] : [])].join('; ')
@@ -105,7 +109,8 @@ function handOffPage(canonicalHost) {
 
 // canonicalHost: when set, every other host name redirects there (the old herokuapp.com address,
 // the bare domain without www). Pages get the hand-off above; everything else a plain redirect.
-export function createApp({ store, dist, secureCookies = false, canonicalHost = null }) {
+// google: { clientId, clientSecret } turns on "Sign in with Google"; exchangeCode is replaceable for tests.
+export function createApp({ store, dist, secureCookies = false, canonicalHost = null, google = null, exchangeCode = exchangeGoogleCode }) {
   const attempts = new Map()
 
   function limitAuthAttempts(request) {
@@ -144,10 +149,53 @@ export function createApp({ store, dist, secureCookies = false, canonicalHost = 
     return user
   }
 
+  // Google sign-in is a pair of page navigations, not JSON calls: /api/auth/google sends the
+  // player to Google, and Google sends them back to the callback, which signs them in and
+  // returns to the game. A random state value in a short-lived cookie ties the two together.
+  const STATE_COOKIE = 'sg_google_state'
+  const stateCookie = (value, maxAge) => [`${STATE_COOKIE}=${value}`, 'Path=/api/auth/google', 'HttpOnly', 'SameSite=Lax', `Max-Age=${maxAge}`, ...(secureCookies ? ['Secure'] : [])].join('; ')
+
+  function googleRedirectUri(request) {
+    const host = canonicalHost || request.headers.host
+    const protocol = canonicalHost || secureCookies ? 'https' : 'http'
+    return `${protocol}://${host}/api/auth/google/callback`
+  }
+
+  function redirect(response, location, cookies = []) {
+    response.writeHead(302, { Location: location, 'Cache-Control': 'no-store', ...(cookies.length ? { 'Set-Cookie': cookies } : {}) })
+    response.end()
+  }
+
+  async function handleGoogle(request, response, pathname) {
+    if (request.method !== 'GET' || !store || !google) return redirect(response, '/')
+    if (pathname === '/api/auth/google') {
+      const state = randomBytes(24).toString('base64url')
+      return redirect(response, googleAuthUrl({ clientId: google.clientId, redirectUri: googleRedirectUri(request), state }), [stateCookie(state, 600)])
+    }
+    const clearState = stateCookie('', 0)
+    const failed = (reason) => redirect(response, `/?signin=${reason}`, [clearState])
+    try {
+      const params = new URL(request.url, 'http://localhost').searchParams
+      if (!params.get('code') || !sameString(params.get('state'), readCookie(request, STATE_COOKIE))) return failed('google-failed')
+      const claims = await exchangeCode({ clientId: google.clientId, clientSecret: google.clientSecret, redirectUri: googleRedirectUri(request), code: params.get('code') })
+      const account = googleAccount(claims, google.clientId)
+      if (!account) return failed('google-failed')
+      const user = await store.signInWithGoogle(account.googleId, account.email)
+      if (!user) return failed('google-taken')
+      await startSession(response, user)
+      response.setHeader('Set-Cookie', [response.getHeader('Set-Cookie'), clearState])
+      response.writeHead(302, { Location: '/', 'Cache-Control': 'no-store' })
+      response.end()
+    } catch (error) {
+      console.error(error)
+      failed('google-failed')
+    }
+  }
+
   const routes = {
     'GET /api/session': async (request) => {
       const user = await currentUser(request)
-      return { accounts: Boolean(store), user: user && { email: user.email } }
+      return { accounts: Boolean(store), google: Boolean(store && google), user: user && { email: user.email } }
     },
     'POST /api/signup': async (request, response) => {
       const { email, password } = await credentials(request)
@@ -244,6 +292,7 @@ export function createApp({ store, dist, secureCookies = false, canonicalHost = 
       response.end()
       return
     }
+    if (pathname === '/api/auth/google' || pathname === '/api/auth/google/callback') return handleGoogle(request, response, pathname)
     if (pathname.startsWith('/api/')) return handleApi(request, response, pathname)
     return serveStatic(response, pathname)
   }

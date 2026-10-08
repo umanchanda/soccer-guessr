@@ -24,6 +24,9 @@ const SCHEMA = `
     PRIMARY KEY (user_id, round)
   );
   ALTER TABLE round_results ADD COLUMN IF NOT EXISTS steps INTEGER[];
+  -- Google sign-in: players who only use Google have no password.
+  ALTER TABLE users ALTER COLUMN password_hash DROP NOT NULL;
+  ALTER TABLE users ADD COLUMN IF NOT EXISTS google_id TEXT UNIQUE;
 `
 
 export async function postgresStore(connectionString) {
@@ -43,6 +46,20 @@ export async function postgresStore(connectionString) {
     async findUserByEmail(email) {
       const { rows } = await pool.query('SELECT id, email, password_hash AS "passwordHash" FROM users WHERE email = $1', [email])
       return rows[0] || null
+    },
+    // The account for a Google sign-in: the one already linked to this Google account, else the
+    // one with the same email (now linked), else a new one. Null if the email belongs to an
+    // account linked to a different Google account.
+    async signInWithGoogle(googleId, email) {
+      const linked = await pool.query('SELECT id, email FROM users WHERE google_id = $1', [googleId])
+      if (linked.rows[0]) return linked.rows[0]
+      const existing = await pool.query('UPDATE users SET google_id = $1 WHERE email = $2 AND google_id IS NULL RETURNING id, email', [googleId, email])
+      if (existing.rows[0]) return existing.rows[0]
+      const created = await pool.query(
+        'INSERT INTO users (email, google_id) VALUES ($1, $2) ON CONFLICT DO NOTHING RETURNING id, email',
+        [email, googleId],
+      )
+      return created.rows[0] || null
     },
     async createSession(tokenHash, userId, expiresAt) {
       await pool.query('INSERT INTO sessions (token_hash, user_id, expires_at) VALUES ($1, $2, $3)', [tokenHash, userId, expiresAt])
@@ -92,6 +109,16 @@ export function memoryStore() {
     },
     async findUserByEmail(email) {
       return users.find((user) => user.email === email) || null
+    },
+    async signInWithGoogle(googleId, email) {
+      let user = users.find((candidate) => candidate.googleId === googleId) || users.find((candidate) => candidate.email === email)
+      if (user?.googleId && user.googleId !== googleId) return null
+      if (!user) {
+        user = { id: users.length + 1, email, passwordHash: null }
+        users.push(user)
+      }
+      user.googleId = googleId
+      return { id: user.id, email: user.email }
     },
     async createSession(tokenHash, userId, expiresAt) {
       sessions.set(tokenHash, { userId, expiresAt })

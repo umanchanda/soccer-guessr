@@ -224,11 +224,17 @@ function startingState(round) {
     : { step: 0, guesses: emptyGuesses(), results: [] }
 }
 
-function AccountPanel({ onSignedIn, onClose }) {
+// Why a Google sign-in bounced back, from the ?signin= the server adds when it does.
+const GOOGLE_ERRORS = {
+  'google-failed': 'Google sign-in didn’t go through. Try again.',
+  'google-taken': 'That email already belongs to an account linked to a different Google account.',
+}
+
+function AccountPanel({ google, initialError = '', onSignedIn, onClose }) {
   const [mode, setMode] = useState('signin')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [error, setError] = useState('')
+  const [error, setError] = useState(initialError)
   const [busy, setBusy] = useState(false)
   const creating = mode === 'signup'
 
@@ -251,6 +257,15 @@ function AccountPanel({ onSignedIn, onClose }) {
         <p className="eyebrow">{creating ? 'CREATE AN ACCOUNT' : 'SIGN IN'}</p>
         <h2>{creating ? 'Keep your scores everywhere.' : 'Welcome back.'}</h2>
         <p>Scores you’ve saved on this device are added to your account.</p>
+        {google && (
+          <>
+            <a className="google-button" href="/api/auth/google">
+              <svg viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.8 2.4 30.3 0 24 0 14.6 0 6.6 5.4 2.7 13.3l7.9 6.2C12.5 13.7 17.8 9.5 24 9.5z" /><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.6 3-2.3 5.5-4.8 7.2l7.7 6c4.5-4.2 6.9-10.3 6.9-17.7z" /><path fill="#FBBC05" d="M10.6 28.7c-.5-1.5-.8-3-.8-4.7s.3-3.2.8-4.7l-7.9-6.2C1 16.6 0 20.2 0 24s1 7.4 2.7 10.9l7.9-6.2z" /><path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.7-6c-2.2 1.5-5 2.3-8.2 2.3-6.2 0-11.5-4.2-13.4-9.9l-7.9 6.2C6.6 42.6 14.6 48 24 48z" /></svg>
+              Continue with Google
+            </a>
+            <p className="account-divider"><span>or use your email</span></p>
+          </>
+        )}
         <label>
           <span>Email</span>
           <input type="email" autoComplete="email" required value={email} onChange={(event) => setEmail(event.target.value)} />
@@ -330,7 +345,7 @@ function ArchiveCalendar({ today, todayRound, playingRound, roundResults, onPlay
 
 function shareText(round, results, total, max) {
   const squares = results ? `${results.map(({ points, max: stepMax }) => (points === stepMax ? '🟩' : points > 0 ? '🟨' : '⬛')).join('')} ` : ''
-  return `icalledgame ⚽ soccer ${round === null ? 'practice' : `#${round}`}\n${squares}${total}/${max}\n${window.location.origin}`
+  return `Soccer Guessr ⚽ ${round === null ? 'practice' : `#${round}`}\n${squares}${total}/${max}\n${window.location.origin}`
 }
 
 function App() {
@@ -345,6 +360,8 @@ function App() {
   const [accounts, setAccounts] = useState(false)
   const [user, setUser] = useState(null)
   const [showAccount, setShowAccount] = useState(false)
+  const [googleSignIn, setGoogleSignIn] = useState(false)
+  const [signInError, setSignInError] = useState('')
   const [initial] = useState(() => startingState(todayRound))
   const [step, setStep] = useState(initial.step)
   const [guesses, setGuesses] = useState(initial.guesses)
@@ -380,10 +397,22 @@ function App() {
   }
 
   useEffect(() => {
+    // A Google sign-in that failed comes back as ?signin=<reason>: reopen the panel to say why.
+    const params = new URLSearchParams(window.location.search)
+    const reason = params.get('signin')
+    if (reason) {
+      params.delete('signin')
+      window.history.replaceState(null, '', `${window.location.pathname}${params.size ? `?${params}` : ''}${window.location.hash}`)
+    }
     getSession()
-      .then(({ accounts: enabled, user: signedInUser }) => {
+      .then(({ accounts: enabled, google, user: signedInUser }) => {
         setAccounts(enabled)
+        setGoogleSignIn(Boolean(google))
         if (signedInUser) return startAccount(signedInUser)
+        if (GOOGLE_ERRORS[reason]) {
+          setSignInError(GOOGLE_ERRORS[reason])
+          setShowAccount(true)
+        }
       })
       .catch(() => {})
     // Only on first load; later sign-ins go through the account panel.
@@ -518,7 +547,7 @@ function App() {
   return (
     <main className="app-shell">
       <header className="topbar">
-        <a className="brand" href="/" aria-label="icalledgame home"><span>i</span>calledgame</a>
+        <a className="brand" href="/" aria-label="Soccer Guessr home">Soccer<span>Guessr</span></a>
         <nav>
           <a href="#archive" className={view === 'archive' ? 'active' : ''}>Archive</a><a href="#how-to-play">How to play</a><a href={DISCORD_URL} target="_blank" rel="noopener noreferrer">Discord</a>
           {accounts && (user
@@ -527,7 +556,7 @@ function App() {
         </nav>
       </header>
 
-      {showAccount && <AccountPanel onSignedIn={startAccount} onClose={() => setShowAccount(false)} />}
+      {showAccount && <AccountPanel google={googleSignIn} initialError={signInError} onSignedIn={startAccount} onClose={() => { setShowAccount(false); setSignInError('') }} />}
 
       {view === 'archive' ? (
         <ArchiveCalendar today={today} todayRound={todayRound} playingRound={round} roundResults={roundResults} onPlay={playRound} onBack={() => playRound(todayRound)} />
@@ -611,7 +640,7 @@ function App() {
       </>)}
 
       <footer>
-        <span>icalledgame <b>×</b> soccer edition</span>
+        <span>Soccer Guessr <b>·</b> the daily soccer puzzle</span>
         {/* The Commons file name gives the answer away, so only link it once the round is over. */}
         {view === 'game' && <span>Photo: {finished ? <a href={match.image.page} target="_blank" rel="noreferrer">{match.image.author}</a> : match.image.author} / Wikimedia Commons <a href={match.image.licenseUrl} target="_blank" rel="noreferrer"><i>{match.image.license}</i></a></span>}
         <span>New match daily · <a href="/privacy">Privacy</a></span>

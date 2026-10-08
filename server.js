@@ -14,7 +14,12 @@ if (!store) console.warn('DATABASE_URL is not set: sign-in is turned off and sco
 // The address players should use, e.g. www.soccerguessr.com. Other addresses redirect to it.
 const canonicalHost = process.env.CANONICAL_HOST?.trim().toLowerCase() || null
 
-const app = createApp({ store, dist: path.join(root, 'dist'), secureCookies: process.env.NODE_ENV === 'production', canonicalHost })
+// "Sign in with Google" appears once both values from the Google Cloud OAuth client are set.
+const google = process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET
+  ? { clientId: process.env.GOOGLE_CLIENT_ID.trim(), clientSecret: process.env.GOOGLE_CLIENT_SECRET.trim() }
+  : null
+
+const app = createApp({ store, dist: path.join(root, 'dist'), secureCookies: process.env.NODE_ENV === 'production', canonicalHost, google })
 
 createServer(app).listen(port, () => {
   console.log(`Soccer Guessr listening on port ${port}`)
