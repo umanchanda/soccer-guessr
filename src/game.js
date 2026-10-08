@@ -1,6 +1,7 @@
 import { MATCHES } from './matches.js'
 
-const LAUNCH_DAY = Date.UTC(2026, 9, 7) / 86400000
+// Round 1 is backdated before the public launch (7 October 2026) so the archive starts with a few games.
+const LAUNCH_DAY = Date.UTC(2026, 9, 3) / 86400000
 
 const stripAccents = (text) => text.normalize('NFD').replace(/[̀-ͯ]/g, '')
 export const normalize = (text) => stripAccents(String(text)).toLowerCase().replace(/[^a-z0-9]/g, '')
