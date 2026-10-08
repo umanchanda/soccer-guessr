@@ -11,7 +11,10 @@ const root = path.dirname(fileURLToPath(import.meta.url))
 const store = process.env.DATABASE_URL ? await postgresStore(process.env.DATABASE_URL) : null
 if (!store) console.warn('DATABASE_URL is not set: sign-in is turned off and scores stay in the browser.')
 
-const app = createApp({ store, dist: path.join(root, 'dist'), secureCookies: process.env.NODE_ENV === 'production' })
+// The address players should use, e.g. www.soccerguessr.com. Other addresses redirect to it.
+const canonicalHost = process.env.CANONICAL_HOST?.trim().toLowerCase() || null
+
+const app = createApp({ store, dist: path.join(root, 'dist'), secureCookies: process.env.NODE_ENV === 'production', canonicalHost })
 
 createServer(app).listen(port, () => {
   console.log(`Soccer Guessr listening on port ${port}`)

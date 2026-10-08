@@ -77,7 +77,35 @@ export function cleanResults(results) {
   return clean
 }
 
-export function createApp({ store, dist, secureCookies = false }) {
+// Served on the old address when a player opens a page there. Guest scores live in that
+// address's localStorage, which the new address can't read, so the page hands them over in the
+// URL fragment (never sent to a server) and the new address saves them (src/transfer.js).
+function handOffPage(canonicalHost) {
+  const host = JSON.stringify(canonicalHost).replaceAll('<', '\\u003c')
+  return `<!doctype html>
+<meta charset="utf-8">
+<title>Soccer Guessr has moved</title>
+<p>Soccer Guessr has moved to <a id="next" href="https://${canonicalHost}/">${canonicalHost}</a>.</p>
+<script>
+  var target = 'https://' + ${host} + location.pathname + location.search
+  try {
+    var data = {}
+    ;['soccer-guessr:results', 'soccer-guessr:progress'].forEach(function (key) {
+      var value = localStorage.getItem(key)
+      if (value) data[key] = JSON.parse(value)
+    })
+    if (Object.keys(data).length) {
+      target += '#sg-transfer=' + encodeURIComponent(JSON.stringify(data)) + '&hash=' + encodeURIComponent(location.hash)
+    }
+  } catch (error) {}
+  location.replace(target.indexOf('#') < 0 ? target + location.hash : target)
+</script>
+`
+}
+
+// canonicalHost: when set, every other host name redirects there (the old herokuapp.com address,
+// the bare domain without www). Pages get the hand-off above; everything else a plain redirect.
+export function createApp({ store, dist, secureCookies = false, canonicalHost = null }) {
   const attempts = new Map()
 
   function limitAuthAttempts(request) {
@@ -200,6 +228,18 @@ export function createApp({ store, dist, secureCookies = false }) {
     } catch {
       response.writeHead(400)
       response.end('Bad request')
+      return
+    }
+    const host = String(request.headers.host || '').split(':')[0].toLowerCase()
+    if (canonicalHost && host !== canonicalHost) {
+      // A page load (not an asset or API call) may have guest scores to carry across.
+      if (request.method === 'GET' && !pathname.startsWith('/api/') && !path.extname(pathname)) {
+        response.writeHead(200, { 'Content-Type': 'text/html', 'Cache-Control': 'no-store' })
+        response.end(handOffPage(canonicalHost))
+        return
+      }
+      response.writeHead(308, { Location: `https://${canonicalHost}${request.url}` })
+      response.end()
       return
     }
     if (pathname.startsWith('/api/')) return handleApi(request, response, pathname)
