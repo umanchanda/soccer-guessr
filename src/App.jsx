@@ -547,7 +547,7 @@ function App() {
   return (
     <main className="app-shell">
       <header className="topbar">
-        <a className="brand" href="/" aria-label="Soccer Guessr home"><img src="/favicon.svg" alt="" /><b>Soccer <span>Guessr</span></b></a>
+        <a className="brand" href="/" aria-label="Soccer Guessr home"><img src="/logo.svg" alt="" /><b>Soccer <span>Guessr</span></b></a>
         <nav>
           <a href="#archive" className={view === 'archive' ? 'active' : ''}>Archive</a><a href="#how-to-play">How to play</a><a href={DISCORD_URL} target="_blank" rel="noopener noreferrer">Discord</a>
           {accounts && (user
