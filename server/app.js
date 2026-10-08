@@ -201,8 +201,10 @@ export function createApp({ store, dist, secureCookies = false, canonicalHost = 
   }
 
   async function serveStatic(response, requestedPath) {
+    // "/privacy" serves privacy.html when it exists, so pages get clean addresses.
+    const cleanPage = path.extname(requestedPath) ? null : path.resolve(dist, `.${requestedPath}.html`)
     const relativePath = requestedPath === '/' ? '/index.html' : requestedPath
-    const filePath = path.resolve(dist, `.${relativePath}`)
+    const filePath = cleanPage && (await readFile(cleanPage).then(() => true, () => false)) ? cleanPage : path.resolve(dist, `.${relativePath}`)
 
     if (!filePath.startsWith(`${dist}${path.sep}`)) {
       response.writeHead(403)
