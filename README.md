@@ -16,6 +16,20 @@ npm run build
 npm start
 ```
 
+## Accounts and saved scores
+
+Players can play as guests, or sign in with an email and password so their scores follow them between devices. Guests' finished rounds stay in the browser (localStorage); signing in copies them into the account, keeping the account's own score for any round it already has.
+
+Accounts are stored in Postgres, reached through `DATABASE_URL`. `server.js` creates the tables on start-up (`server/store.js`). Without `DATABASE_URL` the game still runs and the sign-in button is hidden. On Heroku, adding the Postgres add-on sets `DATABASE_URL` for you:
+
+```bash
+heroku addons:create heroku-postgresql:essential-0
+```
+
+Passwords are hashed with scrypt. Sign-in uses a random session token in an HttpOnly cookie (`Secure` when `NODE_ENV=production`, which Heroku sets); only the token's hash is stored.
+
+For local development, run `npm start` with `DATABASE_URL` pointing at a local Postgres next to `npm run dev`; Vite forwards `/api` to port 3000. `npm test` covers the API against an in-memory store, and against Postgres too when `TEST_DATABASE_URL` is set.
+
 ## Adding matches
 
 Every puzzle lives in `src/matches.js`. Each entry needs the teams, managers, starting XIs, goals (scorer, minute, which side it counted for), year, competition type and a photo. The list is also the schedule: round 1 (7 October 2026) plays the first match, round 2 the second, and so on, so add new matches at the end. "Play another match" steps to the next one. The archive section lists every round from launch up to today so players can catch up on days they missed; finished rounds are remembered in the browser (localStorage) and show their score.
