@@ -146,7 +146,9 @@ function parseLineups(text) {
 }
 
 function teamName(value) {
+  // {{fb|ESP}}, or the module forms {{#invoke:flag|fb-rt|ESP}} and {{#invoke:flagg|main|unpre|avar=fb|ARG}}.
   const template = value.match(/\{\{\s*(?:fb|fb-rt|fbw|fbw-rt|fbu|fb-big)\s*\|\s*([A-Z]{3})/i)
+    ?? value.match(/\{\{\s*#invoke:\s*flagg?\s*\|[^{}]*?\|\s*([A-Z]{3})\s*(?:\||\}\})/)
   if (template) return NATIONS[template[1].toUpperCase()] ?? template[1].toUpperCase()
   const link = value.match(/\[\[(?:[^\]|]*\|)?([^\]]+)\]\]/)
   return link ? plain(link[1]) : plain(value)
@@ -165,8 +167,13 @@ function scoreOf(value) {
 function parseGoals(value, side) {
   const goals = []
   let scorer = null
-  const pattern = /\[\[([^\]|]+)(?:\|([^\]]+))?\]\]|\{\{\s*(sortname|interlanguage link|ill|goal|pengoal|penalty goal|own goal|og)\s*(\|[^{}]*)?\}\}/gi
+  // Minutes come in {{goal}} templates, or as plain text like `106'` or `45+2' (pen.)`.
+  const pattern = /\[\[([^\]|]+)(?:\|([^\]]+))?\]\]|\{\{\s*(sortname|interlanguage link|ill|goal|pengoal|penalty goal|own goal|og)\s*(\|[^{}]*)?\}\}|(\d+(?:\s*\+\s*\d+)?)\s*['’](\s*\((?:pen|o\.?\s?g)[^)]*\))?/gi
   for (const match of value.matchAll(pattern)) {
+    if (match[5]) {
+      if (scorer) goals.push({ side, scorer, minute: match[5].replace(/\s/g, ''), penalty: /pen/i.test(match[6] ?? ''), ownGoal: /o\.?\s?g/i.test(match[6] ?? '') })
+      continue
+    }
     if (match[1]) {
       scorer = { link: match[1].trim(), name: plain(match[2] ?? withoutDisambiguation(match[1])) }
       continue
@@ -322,7 +329,7 @@ export function formatEntry(entry) {
   ].join('\n')
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const [title, heading] = process.argv.slice(2)
   if (!title) {
     console.error('Usage: node scripts/import-match.mjs "<Wikipedia article>" ["<section heading>"]')
