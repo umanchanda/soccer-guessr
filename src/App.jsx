@@ -547,7 +547,7 @@ function App() {
   return (
     <main className="app-shell">
       <header className="topbar">
-        <a className="brand" href="/" aria-label="Soccer Guessr home">Soccer<span>Guessr</span></a>
+        <a className="brand" href="/" aria-label="Soccer Guessr home">Soccer <span>Guessr</span></a>
         <nav>
           <a href="#archive" className={view === 'archive' ? 'active' : ''}>Archive</a><a href="#how-to-play">How to play</a><a href={DISCORD_URL} target="_blank" rel="noopener noreferrer">Discord</a>
           {accounts && (user
@@ -643,7 +643,7 @@ function App() {
         <span>Soccer Guessr <b>·</b> the daily soccer puzzle</span>
         {/* The Commons file name gives the answer away, so only link it once the round is over. */}
         {view === 'game' && <span>Photo: {finished ? <a href={match.image.page} target="_blank" rel="noreferrer">{match.image.author}</a> : match.image.author} / Wikimedia Commons <a href={match.image.licenseUrl} target="_blank" rel="noreferrer"><i>{match.image.license}</i></a></span>}
-        <span>New match daily · <a href="/privacy">Privacy</a></span>
+        <span>New match daily · <a href="/privacy">Privacy policy</a></span>
       </footer>
     </main>
   )
