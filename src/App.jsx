@@ -351,7 +351,7 @@ function shareText(round, results, total, max) {
 function App() {
   const today = new Date()
   const todayRound = roundNumber(today)
-  // The round being played, or null for practice matches reached via "Play another match".
+  // The round being played, or null for a practice match (no button starts one now).
   const [round, setRound] = useState(todayRound)
   const [matchIndex, setMatchIndex] = useState(() => roundMatchIndex(todayRound))
   // Guests' results live in this browser; signed-in players' results live in their account.
@@ -626,7 +626,7 @@ function App() {
               <div className="step-actions">
                 <button className="back-button" type="button" onClick={share}>{copied ? 'Copied ✓' : 'Share result'}</button>
                 <a className="back-button discord-button" href={DISCORD_URL} target="_blank" rel="noopener noreferrer">Join the Discord</a>
-                <button className="submit-button" type="button" onClick={() => startMatch((matchIndex + 1) % MATCHES.length)}>Play another match <span>→</span></button>
+                <a className="submit-button" href="#archive">Play Archive <span>→</span></a>
               </div>
             </div>
           )}
