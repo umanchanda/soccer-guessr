@@ -116,6 +116,11 @@ test('other addresses send players to the canonical one', async () => {
   assert.match(html, /soccer-guessr:results/)
   assert.match(html, /'https:\/\/' \+ "www.soccerguessr.com"/)
 
+  // The bare domain never served the game, so its pages redirect for real (crawlers included).
+  const bare = await get('/privacy', 'soccerguessr.com')
+  assert.equal(bare.status, 308)
+  assert.equal(bare.headers.get('location'), 'https://www.soccerguessr.com/privacy')
+
   // Assets and API calls redirect straight there.
   const asset = await get('/assets/index.js', 'soccerguessr.com')
   assert.equal(asset.status, 308)
