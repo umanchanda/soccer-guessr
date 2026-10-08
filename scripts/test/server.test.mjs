@@ -33,6 +33,12 @@ test('passwords are hashed and verified', async () => {
 
 test('results are cleaned before saving', () => {
   assert.deepEqual(cleanResults({ 1: { earned: 20, available: 30 }, 2: { earned: 40, available: 30 }, x: { earned: 1, available: 2 }, 3: null }), { 1: { earned: 20, available: 30 } })
+  // Per-question points are kept only when they add up to the score.
+  assert.deepEqual(cleanResults({ 1: { earned: 3, available: 30, steps: [2, 1, 0] }, 2: { earned: 3, available: 30, steps: [2, 2] }, 3: { earned: 1, available: 30, steps: [1.5, -0.5] } }), {
+    1: { earned: 3, available: 30, steps: [2, 1, 0] },
+    2: { earned: 3, available: 30 },
+    3: { earned: 1, available: 30 },
+  })
 })
 
 test('without a database, accounts are off but the session check works', async () => {
@@ -56,8 +62,8 @@ async function accountFlow(store) {
 
   // A guest's local results are copied in; the first score for a round is kept.
   await app.call('POST', '/api/results', { results: { 1: { earned: 10, available: 30 } } })
-  const merged = await app.call('POST', '/api/results', { results: { 1: { earned: 30, available: 30 }, 2: { earned: 5, available: 29 } } })
-  assert.deepEqual(merged.body.results, { 1: { earned: 10, available: 30 }, 2: { earned: 5, available: 29 } })
+  const merged = await app.call('POST', '/api/results', { results: { 1: { earned: 30, available: 30 }, 2: { earned: 5, available: 29, steps: [2, 0, 1, 0, 2, 0, 0] } } })
+  assert.deepEqual(merged.body.results, { 1: { earned: 10, available: 30 }, 2: { earned: 5, available: 29, steps: [2, 0, 1, 0, 2, 0, 0] } })
 
   await app.call('POST', '/api/logout', {})
   assert.equal((await app.call('GET', '/api/results')).status, 401)

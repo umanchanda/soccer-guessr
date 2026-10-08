@@ -59,17 +59,20 @@ async function readJson(request) {
   }
 }
 
-// Keeps only well-formed { [round]: { earned, available } } entries.
+// Keeps only well-formed { [round]: { earned, available, steps } } entries. steps, the points
+// won on each question, is optional (older results don't have it) and dropped if it doesn't add up.
 export function cleanResults(results) {
   const clean = {}
   if (!results || typeof results !== 'object') return clean
   for (const [round, result] of Object.entries(results)) {
     const number = Number(round)
-    const { earned, available } = result || {}
+    const { earned, available, steps } = result || {}
     if (!Number.isInteger(number) || number < 1 || number > 100000) continue
     if (!Number.isInteger(available) || available < 1 || available > 1000) continue
     if (!Number.isInteger(earned) || earned < 0 || earned > available) continue
-    clean[number] = { earned, available }
+    const validSteps = Array.isArray(steps) && steps.length <= 20 && steps.every((points) => Number.isInteger(points) && points >= 0)
+      && steps.reduce((sum, points) => sum + points, 0) === earned
+    clean[number] = validSteps ? { earned, available, steps } : { earned, available }
   }
   return clean
 }
