@@ -16,6 +16,10 @@ npm run build
 npm start
 ```
 
+### Custom domain
+
+The game lives at `www.soccerguessr.com` (DNS on Cloudflare). Set `CANONICAL_HOST=www.soccerguessr.com` on Heroku and every other address (the old `herokuapp.com` one, the bare `soccerguessr.com`) redirects there. Browsers keep localStorage per address, so page loads on an old address first pass the guest's scores along in the URL fragment; `src/transfer.js` saves them on the new address without replacing anything already there. Only set `CANONICAL_HOST` once the new address loads over HTTPS, or everyone is sent to a site that doesn't work yet.
+
 ## Accounts and saved scores
 
 Players can play as guests, or sign in with an email and password so their scores follow them between devices. Guests' finished rounds stay in the browser (localStorage); signing in copies them into the account, keeping the account's own score for any round it already has.

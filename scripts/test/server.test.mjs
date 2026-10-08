@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { createServer } from 'node:http'
+import { createServer, request } from 'node:http'
 import { createApp, cleanResults } from '../../server/app.js'
 import { memoryStore, postgresStore } from '../../server/store.js'
 import { hashPassword, verifyPassword } from '../../server/auth.js'
@@ -95,4 +95,35 @@ test('account flow on Postgres', { skip: !process.env.TEST_DATABASE_URL }, async
   } finally {
     await store.close()
   }
+})
+
+test('other addresses send players to the canonical one', async () => {
+  const server = createServer(createApp({ store: null, dist: '/nonexistent', canonicalHost: 'www.soccerguessr.com' }))
+  await new Promise((resolve) => server.listen(0, resolve))
+  // fetch won't set the Host header, so use node:http directly.
+  const get = (url, host, method = 'GET') => new Promise((resolve, reject) => {
+    request({ port: server.address().port, path: url, method, headers: { Host: host } }, (response) => {
+      let text = ''
+      response.on('data', (chunk) => { text += chunk })
+      response.on('end', () => resolve({ status: response.statusCode, headers: { get: (name) => response.headers[name] }, text: () => text }))
+    }).on('error', reject).end()
+  })
+
+  // Pages get the hand-off that carries guest scores across.
+  const page = await get('/?x=1', 'old-app.herokuapp.com')
+  assert.equal(page.status, 200)
+  const html = await page.text()
+  assert.match(html, /soccer-guessr:results/)
+  assert.match(html, /'https:\/\/' \+ "www.soccerguessr.com"/)
+
+  // Assets and API calls redirect straight there.
+  const asset = await get('/assets/index.js', 'soccerguessr.com')
+  assert.equal(asset.status, 308)
+  assert.equal(asset.headers.get('location'), 'https://www.soccerguessr.com/assets/index.js')
+  assert.equal((await get('/api/session', 'old-app.herokuapp.com', 'POST')).status, 308)
+
+  // The canonical address itself is served normally.
+  const session = await get('/api/session', 'www.soccerguessr.com')
+  assert.equal(session.status, 200)
+  await new Promise((resolve) => server.close(resolve))
 })
