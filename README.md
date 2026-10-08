@@ -18,7 +18,16 @@ npm start
 
 ## Adding matches
 
-Every puzzle lives in `src/matches.js`. Each entry needs the teams, managers, starting XIs, goals (scorer, minute, which side it counted for), year, competition type and a photo. The daily match rotates through the list by date, and "Play another match" steps to the next one.
+Every puzzle lives in `src/matches.js`. Each entry needs the teams, managers, starting XIs, goals (scorer, minute, which side it counted for), year, competition type and a photo. The list is also the schedule: round 1 (7 October 2026) plays the first match, round 2 the second, and so on, so add new matches at the end. "Play another match" steps to the next one.
+
+Most major finals and tournament matches have line-up tables on Wikipedia. `scripts/import-match.mjs` turns one into an entry:
+
+```bash
+node scripts/import-match.mjs "2010 FIFA World Cup final"
+node scripts/import-match.mjs "2018 FIFA World Cup Group B" "Portugal vs Spain"
+```
+
+It prints the entry and warns when something doesn't add up (not 11 starters, goals that don't match the score, a scorer missing from both squads). Fill in the photo, competition type and team aliases yourself. Wikipedia lists the official home team first, which isn't always the side people remember.
 
 Photos are loaded from Wikimedia Commons at runtime and aren't stored in this repository or on Heroku's filesystem. Each match records the photo's author and license, which the footer displays. Pick photos that don't give the answer away (no scoreboards or scarves naming the final).
 # React + Vite

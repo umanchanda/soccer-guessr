@@ -18,7 +18,7 @@ export const MATCHES = [
     competition: 'world-cup',
     competitionName: '2014 FIFA World Cup final',
     venue: 'Maracanã, Rio de Janeiro',
-    note: 'After extra time',
+    extraTime: true,
     image: {
       src: 'https://upload.wikimedia.org/wikipedia/commons/thumb/8/8f/C%C3%A1maras_-_Acci%C3%B3n_-_140713-8653-jikatu_%2814479326838%29.jpg/1280px-C%C3%A1maras_-_Acci%C3%B3n_-_140713-8653-jikatu_%2814479326838%29.jpg',
       page: 'https://commons.wikimedia.org/wiki/File:C%C3%A1maras_-_Acci%C3%B3n_-_140713-8653-jikatu_(14479326838).jpg',

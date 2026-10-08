@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import './App.css'
 import { COMPETITION_TYPES, MANAGER_OPTIONS, MATCHES, PLAYER_OPTIONS, TEAM_OPTIONS } from './matches.js'
-import { countMatches, dailyMatchIndex, finalScore, namesMatch, normalize, roundNumber, scorersOf } from './game.js'
+import { countMatches, dailyMatchIndex, finalScore, normalize, personMatches, resultNote, roundNumber, scorersOf, teamMatches } from './game.js'
 
 const MAX_SUGGESTIONS = 6
 
@@ -103,7 +103,7 @@ function buildSteps(match) {
       prompt: 'Which two teams played?',
       max: 2,
       ready: (g) => g.teams.every(Boolean),
-      points: (g) => [home, away].filter((team) => g.teams.some((guess) => namesMatch(guess, team.name, team.aliases))).length,
+      points: (g) => [home, away].filter((team) => g.teams.some((guess) => teamMatches(guess, team))).length,
       reveal: () => `${home.name} vs ${away.name}`,
     },
     {
@@ -130,7 +130,7 @@ function buildSteps(match) {
       prompt: 'Who managed each side?',
       max: 2,
       ready: (g) => g.managers.every(Boolean),
-      points: (g) => Number(namesMatch(g.managers[0], home.manager)) + Number(namesMatch(g.managers[1], away.manager)),
+      points: (g) => Number(personMatches(g.managers[0], home.manager)) + Number(personMatches(g.managers[1], away.manager)),
       reveal: () => `${home.name}: ${home.manager} · ${away.name}: ${away.manager}`,
     },
     {
@@ -145,11 +145,11 @@ function buildSteps(match) {
     {
       key: 'score',
       label: 'The final score',
-      prompt: 'What was the final score?',
+      prompt: 'What was the final score? Penalty shootouts don’t count.',
       max: 1,
       ready: () => true,
       points: (g) => Number(g.score.home === score.home && g.score.away === score.away),
-      reveal: () => `${home.name} ${score.home}–${score.away} ${away.name}${match.note ? ` (${match.note.toLowerCase()})` : ''}`,
+      reveal: () => `${home.name} ${score.home}–${score.away} ${away.name}${resultNote(match) ? ` (${resultNote(match)})` : ''}`,
     },
     {
       key: 'scorers',
