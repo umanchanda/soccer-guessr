@@ -26,9 +26,9 @@ const SCHEMA = `
 `
 
 export async function postgresStore(connectionString) {
-  // Heroku Postgres requires TLS but uses certificates Node can't verify.
+  // Hosted databases like Neon require TLS with a verified certificate; a local one has none.
   const local = /@(localhost|127\.0\.0\.1)[:/]|^postgres(ql)?:\/\/\/|host=\//.test(connectionString)
-  const pool = new pg.Pool({ connectionString, ssl: local ? false : { rejectUnauthorized: false } })
+  const pool = new pg.Pool({ connectionString, ssl: !local })
   await pool.query(SCHEMA)
 
   return {

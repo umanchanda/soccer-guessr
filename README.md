@@ -20,10 +20,10 @@ npm start
 
 Players can play as guests, or sign in with an email and password so their scores follow them between devices. Guests' finished rounds stay in the browser (localStorage); signing in copies them into the account, keeping the account's own score for any round it already has.
 
-Accounts are stored in Postgres, reached through `DATABASE_URL`. `server.js` creates the tables on start-up (`server/store.js`). Without `DATABASE_URL` the game still runs and the sign-in button is hidden. On Heroku, adding the Postgres add-on sets `DATABASE_URL` for you:
+Accounts are stored in a [Neon](https://neon.tech) Postgres database, reached through `DATABASE_URL`. `server.js` creates the tables on start-up (`server/store.js`). Without `DATABASE_URL` the game still runs and the sign-in button is hidden. Copy the connection string from the Neon dashboard (Connect, pooled connection), change `sslmode=require` to `sslmode=verify-full` (same behaviour in the `pg` driver, without its warning), and set it on Heroku:
 
 ```bash
-heroku addons:create heroku-postgresql:essential-0
+heroku config:set DATABASE_URL='postgresql://…-pooler.….neon.tech/neondb?sslmode=verify-full'
 ```
 
 Passwords are hashed with scrypt. Sign-in uses a random session token in an HttpOnly cookie (`Secure` when `NODE_ENV=production`, which Heroku sets); only the token's hash is stored.
