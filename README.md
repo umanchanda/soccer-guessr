@@ -16,7 +16,11 @@ npm run build
 npm start
 ```
 
-The current match photograph is loaded from Wikimedia Commons at runtime. It is not stored in this repository or on Heroku's filesystem. The UI includes attribution for Jimmy Baikovicius under CC BY-SA 2.0.
+## Adding matches
+
+Every puzzle lives in `src/matches.js`. Each entry needs the teams, managers, starting XIs, goals (scorer, minute, which side it counted for), year, competition type and a photo. The daily match rotates through the list by date, and "Play another match" steps to the next one.
+
+Photos are loaded from Wikimedia Commons at runtime and aren't stored in this repository or on Heroku's filesystem. Each match records the photo's author and license, which the footer displays. Pick photos that don't give the answer away (no scoreboards or scarves naming the final).
 # React + Vite
 
 This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
