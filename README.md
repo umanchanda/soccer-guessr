@@ -32,7 +32,7 @@ For local development, run `npm start` with `DATABASE_URL` pointing at a local P
 
 ## Adding matches
 
-Every puzzle lives in `src/matches.js`. Each entry needs the teams, managers, starting XIs, goals (scorer, minute, which side it counted for), year, competition type and a photo. The list is also the schedule: round 1 (3 October 2026, backdated before the 7 October launch so the archive starts with a few games) plays the first match, round 2 the second, and so on, so add new matches at the end. "Play another match" steps to the next one. The archive section lists every round from launch up to today so players can catch up on days they missed; finished rounds are remembered in the browser (localStorage) and show their score.
+Every puzzle lives in `src/matches.js`. Each entry needs the teams, managers, starting XIs, goals (scorer, minute, which side it counted for), year, competition type and a photo. The list is also the schedule: round 1 (3 October 2026, backdated before the 7 October launch so the archive starts with a few games) plays the first match, round 2 the second, and so on, so add new matches at the end. "Play another match" steps to the next one. The Archive page (`#archive`) shows every round from round 1 up to today on a month calendar, with each day's round number and the player's score, so players can catch up on days they missed.
 
 Most major finals and tournament matches have line-up tables on Wikipedia. `scripts/import-match.mjs` turns one into an entry:
 
